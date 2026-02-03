@@ -294,8 +294,8 @@ with st.form("main"):
         cols = st.columns([6, 1])
 
         label = (
-            "Punkt startowy (origin)" if i == 0
-            else ("Punkt końcowy (destination)"
+            "Punkt startowy" if i == 0
+            else ("Punkt końcowy"
                   if i == len(st.session_state.addresses) - 1
                   else f"Stop {i}")
         )
@@ -310,7 +310,7 @@ with st.form("main"):
         with cols[0]:
             if i == 0:
                 # „combo” w miejscu inputa: selectbox jako główne pole
-                options = ["— wybierz —"] + QUICK_LOADS + [OTHER_LABEL]
+                options = ["Załadunek"] + QUICK_LOADS + [OTHER_LABEL]
         
                 # jeśli obecna wartość jest jednym z gotowców, ustaw ją jako wybraną
                 default_idx = 0
