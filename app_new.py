@@ -7,6 +7,7 @@ import pandas as pd
 import requests
 from dotenv import load_dotenv
 from pathlib import Path
+from streamlit_tags import st_tags
 
 ENV_PATH = Path(__file__).resolve().parent / ".env"
 load_dotenv(dotenv_path=ENV_PATH)
@@ -312,47 +313,15 @@ with st.form("main"):
 
         with cols[0]:
             if i == 0:
-                # --- TRYB 1: lista (select)
-                if st.session_state.origin_mode == "pick":
-                    options = ["Załadunek"] + QUICK_LOADS + ["Inny adres…"]
-        
-                    # jeśli obecny origin jest jednym z gotowców, ustaw jako selected
-                    default_idx = 0
-                    if st.session_state.addresses[0] in QUICK_LOADS:
-                        default_idx = options.index(st.session_state.addresses[0])
-        
-                    picked = st.selectbox(
-                        label,  # "Punkt startowy (origin)" - w tym samym miejscu
-                        options,
-                        index=default_idx,
-                        key="origin_pick",
-                        placeholder="Załadunek",
-                    )
-        
-                    if picked in QUICK_LOADS:
-                        st.session_state.addresses[0] = picked
-        
-                    if picked == "Inny adres…":
-                        st.session_state.origin_mode = "manual"
-                        st.session_state.addresses[0] = ""  # żeby placeholder działał
-                        st.rerun()
-        
-                # --- TRYB 2: ręczne wpisywanie (text_input)
-                else:
-                    st.session_state.addresses[0] = st.text_input(
-                        label,
-                        value=st.session_state.addresses[0],
-                        placeholder="Załadunek",
-                        key="origin_manual",
-                    )
-        
-                    # mały przycisk, żeby wrócić do listy (w tym samym wierszu)
-                    back_cols = st.columns([1, 5])
-                    with back_cols[0]:
-                        if st.form_submit_button("↩︎", help="Wróć do listy"):
-                            st.session_state.origin_mode = "pick"
-                            st.rerun()
-        
+                picked_list = st_tags(
+                    label=label,                    # "Punkt startowy (origin)"
+                    text="Załadunek",               # placeholder-ish
+                    value=[st.session_state.addresses[0]] if st.session_state.addresses[0] else [],
+                    suggestions=QUICK_LOADS,        # Twoje 3 adresy
+                    maxtags=1,                      # tylko jeden załadunek
+                    key="origin_tags",
+                )
+                st.session_state.addresses[0] = picked_list[0] if picked_list else ""
             else:
                 st.session_state.addresses[i] = st.text_input(
                     label,
@@ -360,8 +329,6 @@ with st.form("main"):
                     placeholder=placeholder,
                     key=f"address_{i}",
                 )
-
-
 
 
         # ❌ usuń punkt (nie usuwamy origin)
