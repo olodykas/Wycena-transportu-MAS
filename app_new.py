@@ -325,12 +325,6 @@ with top[0]:
         st.session_state.addresses.append("")
         st.rerun()
 
-with top[1]:
-    if st.button("🧹 Wyczyść"):
-        st.session_state.addresses = ["", ""]
-        st.session_state.selected_opts = []
-        st.session_state.transport_ui = "Naczepa"
-        st.rerun()
 
 last = len(st.session_state.addresses) - 1
 
@@ -399,8 +393,7 @@ submitted = st.button("Policz ✅")
 # Wynik
 # ---------------------------
 if submitted:
-    # ✅ poprawiony run_id (u Ciebie było "%Y%m%d%")
-    run_id = dt.datetime.now().strftime("%Y%m%d%H%M%S%f")
+    run_id = dt.datetime.now().strftime("%Y-%m-%d")
 
     with st.spinner("Liczenie trasy i wyceny..."):
         try:
