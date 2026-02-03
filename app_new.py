@@ -306,34 +306,34 @@ with st.form("main"):
                   else "Przystanek pośredni")
         )
 
-with cols[0]:
-    if i == 0:
-        # 1) dropdown z szybkimi adresami + opcja ręczna
-        pick = st.selectbox(
-            "Szybki wybór załadunku",
-            ["— wybierz —"] + QUICK_LOADS + ["Inny (wpisz ręcznie)"],
-            index=0,
-            key="quick_load_pick",
-        )
-
-        # 2) jeśli wybrano gotowca, ustawiamy adres[0]
-        if pick in QUICK_LOADS:
-            st.session_state.addresses[i] = pick
-
-        # 3) pole tekstowe ZAWSZE widoczne (można nadpisać / wpisać inne)
-        st.session_state.addresses[i] = st.text_input(
-            label,
-            value=st.session_state.addresses[i],
-            placeholder=placeholder,
-            key=f"address_{i}"
-        )
-    else:
-        st.session_state.addresses[i] = st.text_input(
-            label,
-            value=addr,
-            placeholder=placeholder,
-            key=f"address_{i}"
-        )
+    with cols[0]:
+        if i == 0:
+            # 1) dropdown z szybkimi adresami + opcja ręczna
+            pick = st.selectbox(
+                "Szybki wybór załadunku",
+                ["— wybierz —"] + QUICK_LOADS + ["Inny (wpisz ręcznie)"],
+                index=0,
+                key="quick_load_pick",
+            )
+    
+            # 2) jeśli wybrano gotowca, ustawiamy adres[0]
+            if pick in QUICK_LOADS:
+                st.session_state.addresses[i] = pick
+    
+            # 3) pole tekstowe ZAWSZE widoczne (można nadpisać / wpisać inne)
+            st.session_state.addresses[i] = st.text_input(
+                label,
+                value=st.session_state.addresses[i],
+                placeholder=placeholder,
+                key=f"address_{i}"
+            )
+        else:
+            st.session_state.addresses[i] = st.text_input(
+                label,
+                value=addr,
+                placeholder=placeholder,
+                key=f"address_{i}"
+            )
 
         # ❌ usuń punkt (nie usuwamy origin)
         if i > 0:
