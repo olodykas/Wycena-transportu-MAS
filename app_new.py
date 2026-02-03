@@ -185,10 +185,6 @@ def geocode(place: str) -> tuple[float, float, str]:
     loc = res["geometry"]["location"]
     return float(loc["lat"]), float(loc["lng"]), res.get("formatted_address", place)
 
-origin = st.session_state.addresses[0].strip()
-if not origin:
-    st.error("Uzupełnij pole Załadunek.")
-    st.stop()
 
 @st.cache_data(ttl=6*3600)
 def route_km(origin: str, destination: str, mode: str, waypoints: tuple[str, ...]) -> float:
@@ -404,6 +400,11 @@ if submitted:
             google_mode = "driving"
 
             # trasa km
+            origin = st.session_state.addresses[0].strip()
+            if not origin:
+                st.error("Uzupełnij pole Załadunek.")
+                st.stop()
+
             km = route_km(origin, destination, google_mode, tuple(stops))
 
             # geocode origin + destination (kierunek)
