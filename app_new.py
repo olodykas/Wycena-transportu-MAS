@@ -318,25 +318,25 @@ with st.form("main"):
                   else "Przystanek pośredni")
         )
 
-            with cols[0]:
-                if i == 0:
-                    picked = st_searchbox(
-                        search_loads,
-                        key="origin_searchbox",
-                        label=label,
-                        placeholder="Załadunek",
-                        clear_on_submit=False,
+        with cols[0]:
+            if i == 0:
+                picked = st_searchbox(
+                    search_loads,
+                    key="origin_searchbox",
+                    label=label,
+                    placeholder="Załadunek",
+                    clear_on_submit=False,
                     )
                     # zapisujemy cokolwiek user wpisał / wybrał
-                    st.session_state.addresses[0] = picked or ""
+                st.session_state.addresses[0] = picked or ""
             
-                else:
-                    st.session_state.addresses[i] = st.text_input(
-                        label,
-                        value=addr,
-                        placeholder=placeholder,
-                        key=f"address_{i}",
-                    )
+            else:
+                st.session_state.addresses[i] = st.text_input(
+                    label,
+                    value=addr,
+                    placeholder=placeholder,
+                    key=f"address_{i}",
+                )
             
 
         # ❌ usuń punkt (nie usuwamy origin)
