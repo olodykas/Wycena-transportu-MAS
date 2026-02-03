@@ -350,44 +350,56 @@ with top[1]:
         st.rerun()
 
 # Inputy adresów + przyciski usuń (poza formą, normalne buttony)
+last = len(st.session_state.addresses) - 1
+
 for i, addr in enumerate(st.session_state.addresses):
     cols = st.columns([6, 1])
 
-    label = "Punkt startowy" if i == 0 else ("Punkt końcowy" if i == len(st.session_state.addresses) - 1 else f"Stop {i}")
-    placeholder = "Załadunek" if i == 0 else ("Rozładunek" if i == len(st.session_state.addresses) - 1 else "Przystanek pośredni")
+    label = (
+        "Punkt startowy" if i == 0
+        else ("Punkt końcowy" if i == last else f"Stop {i}")
+    )
+
+    placeholder = (
+        "Załadunek" if i == 0
+        else ("Rozładunek" if i == last else "Przystanek pośredni")
+    )
 
     with cols[0]:
-        last = len(st.session_state.addresses) - 1
+        # ✅ TYLKO ZAŁADUNEK MA SEARCHBOX
+        if i == 0:
+            def reset_origin():
+                st.session_state.pop("origin_searchbox", None)
 
-        if i in (0, last):
-            sb_key = "origin_searchbox" if i == 0 else "dest_searchbox"
-        
-            def reset_sb(k=sb_key):
-                st.session_state.pop(k, None)
-        
             try:
                 picked = st_searchbox(
                     search_loads,
-                    key=sb_key,
+                    key="origin_searchbox",
                     label=label,
                     placeholder=placeholder,
                     clear_on_submit=False,
                     default_options=QUICK_LOADS,
-                    reset_function=reset_sb,
+                    reset_function=reset_origin,
                     edit_after_submit="option",
                 )
             except IndexError:
-                reset_sb()
+                reset_origin()
                 st.rerun()
-        
-            # ręcznie wpisany tekst (fallback)
-            state = st.session_state.get(sb_key, {})
+
+            # fallback: ręcznie wpisany tekst
+            state = st.session_state.get("origin_searchbox", {})
             typed = ""
             if isinstance(state, dict):
-                typed = (state.get("searchterm") or state.get("search") or state.get("value") or "").strip()
-        
-            st.session_state.addresses[i] = (picked or typed or "").strip()
-        
+                typed = (
+                    state.get("searchterm")
+                    or state.get("search")
+                    or state.get("value")
+                    or ""
+                ).strip()
+
+            st.session_state.addresses[0] = (picked or typed or "").strip()
+
+        # ✅ ROZŁADUNEK + STOPY = NORMALNY INPUT
         else:
             st.session_state.addresses[i] = st.text_input(
                 label,
@@ -396,12 +408,12 @@ for i, addr in enumerate(st.session_state.addresses):
                 key=f"address_{i}",
             )
 
-
-    # usuń punkt (nie usuwamy origin)
+    # ❌ usuń punkt (nie usuwamy origin)
     with cols[1]:
         if i > 0 and st.button("❌", key=f"remove_{i}"):
             st.session_state.addresses.pop(i)
             st.rerun()
+
 
 st.session_state.transport_ui = st.selectbox(
     "Typ transportu",
