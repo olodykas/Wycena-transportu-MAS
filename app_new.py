@@ -357,29 +357,45 @@ for i, addr in enumerate(st.session_state.addresses):
     placeholder = "Załadunek" if i == 0 else ("Rozładunek" if i == len(st.session_state.addresses) - 1 else "Przystanek pośredni")
 
     with cols[0]:
-        if i == 0:
+        last = len(st.session_state.addresses) - 1
+
+        if i in (0, last):
+            sb_key = "origin_searchbox" if i == 0 else "dest_searchbox"
+        
+            def reset_sb(k=sb_key):
+                st.session_state.pop(k, None)
+        
             try:
                 picked = st_searchbox(
                     search_loads,
-                    key="origin_searchbox",
-                    label="Punkt startowy",
-                    placeholder="Załadunek",
+                    key=sb_key,
+                    label=label,
+                    placeholder=placeholder,
                     clear_on_submit=False,
-                    default_options=QUICK_LOADS,        # ✅ po kliknięciu lista QUICK_LOADS
-                    reset_function=reset_origin_searchbox,
-                    edit_after_submit="option",         # ✅ po wyborze zostaje wybrana opcja
+                    default_options=QUICK_LOADS,
+                    reset_function=reset_sb,
+                    edit_after_submit="option",
                 )
             except IndexError:
-                reset_origin_searchbox()
+                reset_sb()
                 st.rerun()
-            
-            typed = _typed_text_from_searchbox_state("origin_searchbox")
-            
-            # ✅ logika: jeśli user wybrał z listy -> bierz picked
-            # ✅ jeśli nie wybrał, ale coś wpisał ręcznie -> bierz typed
-            origin_value = (picked or typed or "").strip()
-            
-            st.session_state.addresses[0] = origin_value
+        
+            # ręcznie wpisany tekst (fallback)
+            state = st.session_state.get(sb_key, {})
+            typed = ""
+            if isinstance(state, dict):
+                typed = (state.get("searchterm") or state.get("search") or state.get("value") or "").strip()
+        
+            st.session_state.addresses[i] = (picked or typed or "").strip()
+        
+        else:
+            st.session_state.addresses[i] = st.text_input(
+                label,
+                value=addr,
+                placeholder=placeholder,
+                key=f"address_{i}",
+            )
+
 
     # usuń punkt (nie usuwamy origin)
     with cols[1]:
