@@ -134,8 +134,26 @@ QUICK_LOADS = [
 def search_loads(searchterm: str):
     term = (searchterm or "").strip().lower()
     if not term:
+        # po kliknięciu (puste pole) pokaż pełną listę
         return QUICK_LOADS
+    # filtruj po wpisanym tekście
     return [x for x in QUICK_LOADS if term in x.lower()]
+
+def _typed_text_from_searchbox_state(key: str) -> str:
+    """
+    streamlit-searchbox trzyma wpisany tekst w session_state[key]["searchterm"]
+    (w zależności od wersji bywa też "search" lub inne pole, więc robimy bezpiecznie).
+    """
+    state = st.session_state.get(key)
+    if isinstance(state, dict):
+        for k in ("searchterm", "search", "value", "input"):
+            v = state.get(k)
+            if isinstance(v, str) and v.strip():
+                return v.strip()
+    return ""
+
+def reset_origin_searchbox():
+    st.session_state.pop("origin_searchbox", None)
 
 
 def haversine_km(lat1, lon1, lat2, lon2) -> float:
@@ -340,22 +358,28 @@ for i, addr in enumerate(st.session_state.addresses):
 
     with cols[0]:
         if i == 0:
-            picked = st_searchbox(
-                search_loads,
-                key="origin_searchbox",
-                label=label,
-                placeholder="Załadunek",
-                clear_on_submit=False,
-            )
-            # zapisujemy cokolwiek user wpisał / wybrał
-            st.session_state.addresses[0] = picked or ""
-        else:
-            st.session_state.addresses[i] = st.text_input(
-                label,
-                value=addr,
-                placeholder=placeholder,
-                key=f"address_{i}",
-            )
+            try:
+                picked = st_searchbox(
+                    search_loads,
+                    key="origin_searchbox",
+                    label="Punkt startowy",
+                    placeholder="Załadunek",
+                    clear_on_submit=False,
+                    default_options=QUICK_LOADS,        # ✅ po kliknięciu lista QUICK_LOADS
+                    reset_function=reset_origin_searchbox,
+                    edit_after_submit="option",         # ✅ po wyborze zostaje wybrana opcja
+                )
+            except IndexError:
+                reset_origin_searchbox()
+                st.rerun()
+            
+            typed = _typed_text_from_searchbox_state("origin_searchbox")
+            
+            # ✅ logika: jeśli user wybrał z listy -> bierz picked
+            # ✅ jeśli nie wybrał, ale coś wpisał ręcznie -> bierz typed
+            origin_value = (picked or typed or "").strip()
+            
+            st.session_state.addresses[0] = origin_value
 
     # usuń punkt (nie usuwamy origin)
     with cols[1]:
