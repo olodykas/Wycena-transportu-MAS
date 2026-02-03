@@ -6,4 +6,3 @@ python-dotenv>=1.0
 joblib>=1.2
 scikit-learn>=1.2
 streamlit-searchbox>=0.1.6
-re
