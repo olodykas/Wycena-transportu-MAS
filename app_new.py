@@ -282,6 +282,9 @@ model = load_model()
 if "addresses" not in st.session_state:
     st.session_state.addresses = ["", ""]
 
+if "origin_mode" not in st.session_state:
+    st.session_state.origin_mode = "pick"  # "pick" albo "manual"
+
 st.subheader("Trasa")
 
 # ➕ poza formą
@@ -309,38 +312,46 @@ with st.form("main"):
 
         with cols[0]:
             if i == 0:
-                # „combo” w miejscu inputa: selectbox jako główne pole
-                options = ["Załadunek"] + QUICK_LOADS + [OTHER_LABEL]
+                # --- TRYB 1: lista (select)
+                if st.session_state.origin_mode == "pick":
+                    options = ["Załadunek"] + QUICK_LOADS + ["Inny adres…"]
         
-                # jeśli obecna wartość jest jednym z gotowców, ustaw ją jako wybraną
-                default_idx = 0
-                if st.session_state.addresses[0] in QUICK_LOADS:
-                    default_idx = options.index(st.session_state.addresses[0])
+                    # jeśli obecny origin jest jednym z gotowców, ustaw jako selected
+                    default_idx = 0
+                    if st.session_state.addresses[0] in QUICK_LOADS:
+                        default_idx = options.index(st.session_state.addresses[0])
         
-                picked = st.selectbox(
-                    label,                        # to jest dokładnie "Punkt startowy (origin)" w tym samym miejscu
-                    options,
-                    index=default_idx,
-                    key="origin_pick",
-                    placeholder="Załadunek",      # placeholder zostaje
-                )
+                    picked = st.selectbox(
+                        label,  # "Punkt startowy (origin)" - w tym samym miejscu
+                        options,
+                        index=default_idx,
+                        key="origin_pick",
+                        placeholder="Załadunek",
+                    )
         
-                # jeśli użytkownik wybrał gotowy adres → wpisujemy go do addresses[0]
-                if picked in QUICK_LOADS:
-                    st.session_state.addresses[0] = picked
+                    if picked in QUICK_LOADS:
+                        st.session_state.addresses[0] = picked
         
-                # jeśli wybrał Inny adres → pokazujemy normalny input z placeholderem
-                if picked == OTHER_LABEL:
+                    if picked == "Inny adres…":
+                        st.session_state.origin_mode = "manual"
+                        st.session_state.addresses[0] = ""  # żeby placeholder działał
+                        st.rerun()
+        
+                # --- TRYB 2: ręczne wpisywanie (text_input)
+                else:
                     st.session_state.addresses[0] = st.text_input(
-                        label,                    # nadal to samo pole „w tym miejscu”
-                        value="" if st.session_state.addresses[0] in QUICK_LOADS else st.session_state.addresses[0],
+                        label,
+                        value=st.session_state.addresses[0],
                         placeholder="Załadunek",
                         key="origin_manual",
                     )
         
-                # jeśli nic nie wybrał — zostawiamy wartość jaka była (zwykle pustą)
-                if picked == "— wybierz —" and st.session_state.addresses[0] in QUICK_LOADS:
-                    st.session_state.addresses[0] = ""
+                    # mały przycisk, żeby wrócić do listy (w tym samym wierszu)
+                    back_cols = st.columns([1, 5])
+                    with back_cols[0]:
+                        if st.form_submit_button("↩︎", help="Wróć do listy"):
+                            st.session_state.origin_mode = "pick"
+                            st.rerun()
         
             else:
                 st.session_state.addresses[i] = st.text_input(
@@ -349,6 +360,7 @@ with st.form("main"):
                     placeholder=placeholder,
                     key=f"address_{i}",
                 )
+
 
 
 
