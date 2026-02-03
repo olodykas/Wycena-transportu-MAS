@@ -115,6 +115,7 @@ QUICK_LOADS = [
     "Czarnków, 64-700",
     "Gromadka, 59-706",
 ]
+OTHER_LABEL = "Inny adres…"
 
 # ---------------------------
 # Helpers: haversine + hub score + kierunek
@@ -184,6 +185,10 @@ def geocode(place: str) -> tuple[float, float, str]:
     loc = res["geometry"]["location"]
     return float(loc["lat"]), float(loc["lng"]), res.get("formatted_address", place)
 
+origin = st.session_state.addresses[0].strip()
+if not origin:
+    st.error("Uzupełnij pole Załadunek.")
+    st.stop()
 
 @st.cache_data(ttl=6*3600)
 def route_km(origin: str, destination: str, mode: str, waypoints: tuple[str, ...]) -> float:
@@ -307,48 +312,48 @@ with st.form("main"):
         )
 
         with cols[0]:
-        # --- 1) dropdown tylko dla i==0 (Załadunek)
             if i == 0:
-                # aktualna wartość pola (żeby dropdown mógł pokazać sensowny stan)
-                current = st.session_state.addresses[0]
+                # „combo” w miejscu inputa: selectbox jako główne pole
+                options = ["— wybierz —"] + QUICK_LOADS + [OTHER_LABEL]
         
-                # lista opcji: szybkie + "wpisuję sam"
-                options = ["(wpisuję ręcznie)"] + QUICK_LOADS
-        
-                # jeśli current jest na liście, ustaw dropdown na tę pozycję
-                idx = 0
-                if current in QUICK_LOADS:
-                    idx = options.index(current)
+                # jeśli obecna wartość jest jednym z gotowców, ustaw ją jako wybraną
+                default_idx = 0
+                if st.session_state.addresses[0] in QUICK_LOADS:
+                    default_idx = options.index(st.session_state.addresses[0])
         
                 picked = st.selectbox(
-                    "Szybki wybór",
+                    label,                        # to jest dokładnie "Punkt startowy (origin)" w tym samym miejscu
                     options,
-                    index=idx,
-                    key="quick_load_pick_v1",
-                    label_visibility="collapsed",
+                    index=default_idx,
+                    key="origin_pick",
+                    placeholder="Załadunek",      # placeholder zostaje
                 )
-                st.caption("Szybki wybór")
         
-                # jeśli user wybrał gotowca, wpisz go do pola
+                # jeśli użytkownik wybrał gotowy adres → wpisujemy go do addresses[0]
                 if picked in QUICK_LOADS:
                     st.session_state.addresses[0] = picked
         
-                # --- 2) pole tekstowe ZAWSZE widoczne
-                st.session_state.addresses[0] = st.text_input(
-                    label,
-                    value=st.session_state.addresses[0],
-                    placeholder=placeholder,
-                    key="address_0_input_v1",   # UWAGA: nowy, unikalny key
-                )
+                # jeśli wybrał Inny adres → pokazujemy normalny input z placeholderem
+                if picked == OTHER_LABEL:
+                    st.session_state.addresses[0] = st.text_input(
+                        label,                    # nadal to samo pole „w tym miejscu”
+                        value="" if st.session_state.addresses[0] in QUICK_LOADS else st.session_state.addresses[0],
+                        placeholder="Załadunek",
+                        key="origin_manual",
+                    )
+        
+                # jeśli nic nie wybrał — zostawiamy wartość jaka była (zwykle pustą)
+                if picked == "— wybierz —" and st.session_state.addresses[0] in QUICK_LOADS:
+                    st.session_state.addresses[0] = ""
         
             else:
-                # pozostałe pola normalnie
                 st.session_state.addresses[i] = st.text_input(
                     label,
                     value=addr,
                     placeholder=placeholder,
-                    key=f"address_{i}_input_v1",  # też unikalne
+                    key=f"address_{i}",
                 )
+
 
 
         # ❌ usuń punkt (nie usuwamy origin)
