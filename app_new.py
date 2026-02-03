@@ -500,7 +500,7 @@ if submitted:
                         "typ_transportu",
                         "dlugosc_trasy_km",
                         "dest_score",
-                        "final_price"
+                        "final_price",
                         "price_km"
                     ]
                     if c in df.columns
@@ -510,7 +510,7 @@ if submitted:
                     st.info("Nie znaleziono podobnych transportów.")
                 else:
                     df_ui = df.rename(columns=COLUMN_MAP)
-                    st.dataframe(df_ui)
+                    st.dataframe(df_ui[show_cols])
 
                     # ---- zapis do history w Sheets (opcjonalne)
                     ts = dt.datetime.now().strftime("%Y-%m-%d")
