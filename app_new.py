@@ -306,34 +306,50 @@ with st.form("main"):
                   else "Przystanek pośredni")
         )
 
-    with cols[0]:
-        if i == 0:
-            # 1) dropdown z szybkimi adresami + opcja ręczna
-            pick = st.selectbox(
-                "Szybki wybór załadunku",
-                ["— wybierz —"] + QUICK_LOADS + ["Inny (wpisz ręcznie)"],
-                index=0,
-                key="quick_load_pick",
-            )
-    
-            # 2) jeśli wybrano gotowca, ustawiamy adres[0]
-            if pick in QUICK_LOADS:
-                st.session_state.addresses[i] = pick
-    
-            # 3) pole tekstowe ZAWSZE widoczne (można nadpisać / wpisać inne)
-            st.session_state.addresses[i] = st.text_input(
-                label,
-                value=st.session_state.addresses[i],
-                placeholder=placeholder,
-                key=f"address_{i}"
-            )
-        else:
-            st.session_state.addresses[i] = st.text_input(
-                label,
-                value=addr,
-                placeholder=placeholder,
-                key=f"address_{i}"
-            )
+        with cols[0]:
+        # --- 1) dropdown tylko dla i==0 (Załadunek)
+            if i == 0:
+                # aktualna wartość pola (żeby dropdown mógł pokazać sensowny stan)
+                current = st.session_state.addresses[0]
+        
+                # lista opcji: szybkie + "wpisuję sam"
+                options = ["(wpisuję ręcznie)"] + QUICK_LOADS
+        
+                # jeśli current jest na liście, ustaw dropdown na tę pozycję
+                idx = 0
+                if current in QUICK_LOADS:
+                    idx = options.index(current)
+        
+                picked = st.selectbox(
+                    "Szybki wybór",
+                    options,
+                    index=idx,
+                    key="quick_load_pick_v1",
+                    label_visibility="collapsed",
+                )
+                st.caption("Szybki wybór")
+        
+                # jeśli user wybrał gotowca, wpisz go do pola
+                if picked in QUICK_LOADS:
+                    st.session_state.addresses[0] = picked
+        
+                # --- 2) pole tekstowe ZAWSZE widoczne
+                st.session_state.addresses[0] = st.text_input(
+                    label,
+                    value=st.session_state.addresses[0],
+                    placeholder=placeholder,
+                    key="address_0_input_v1",   # UWAGA: nowy, unikalny key
+                )
+        
+            else:
+                # pozostałe pola normalnie
+                st.session_state.addresses[i] = st.text_input(
+                    label,
+                    value=addr,
+                    placeholder=placeholder,
+                    key=f"address_{i}_input_v1",  # też unikalne
+                )
+
 
         # ❌ usuń punkt (nie usuwamy origin)
         if i > 0:
