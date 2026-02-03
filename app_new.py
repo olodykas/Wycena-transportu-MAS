@@ -1,19 +1,37 @@
 import os
 import datetime as dt
 import math
+from pathlib import Path
+
 import streamlit as st
 import joblib
 import pandas as pd
 import requests
 from dotenv import load_dotenv
-from pathlib import Path
-from streamlit_tags import st_tags
 
+from streamlit_searchbox import st_searchbox
+
+# from streamlit_tags import st_tags
+
+
+# ---------------------------
+# Streamlit config MUST be first Streamlit call
+# ---------------------------
+st.set_page_config(page_title="Wycena transportu", layout="centered")
+
+
+# ---------------------------
+# Env
+# ---------------------------
 ENV_PATH = Path(__file__).resolve().parent / ".env"
 load_dotenv(dotenv_path=ENV_PATH)
 
-# ---------- Streamlit setup ----------
-st.markdown("""
+
+# ---------------------------
+# UI cosmetics
+# ---------------------------
+st.markdown(
+    """
 <style>
 .block-container {
     padding-top: 1rem;
@@ -23,37 +41,30 @@ st.markdown("""
     max-width: 70%;
 }
 </style>
-""", unsafe_allow_html=True)
-
-st.set_page_config(page_title="Wycena transportu",
-                   layout="centered",
+""",
+    unsafe_allow_html=True,
 )
 
 st.title("Kalkulator wycen")
 
 
 # ---------------------------
-# Config
+# Config helpers
 # ---------------------------
-MODEL_PATH = os.getenv("MODEL_PATH", "model_wycena_raw.joblib")
-API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
-
-APPS_SCRIPT_URL = os.getenv("APPS_SCRIPT_URL")
-APPS_SCRIPT_TOKEN = os.getenv("APPS_SCRIPT_TOKEN", "")
-DB_HISTORY_SHEET = os.getenv("DB_HISTORY_SHEET", "history")
-DB_CORRECTIONS_SHEET = os.getenv("DB_CORRECTIONS_SHEET", "corrections")
-
 def get_secret(name: str, default: str | None = None):
     if name in st.secrets:
         return st.secrets[name]
     return os.getenv(name, default)
 
+
 MODEL_PATH = get_secret("MODEL_PATH", "model_wycena_raw.joblib")
 API_KEY = get_secret("GOOGLE_MAPS_API_KEY")
+
 APPS_SCRIPT_URL = get_secret("APPS_SCRIPT_URL")
 APPS_SCRIPT_TOKEN = get_secret("APPS_SCRIPT_TOKEN", "")
 DB_HISTORY_SHEET = get_secret("DB_HISTORY_SHEET", "history")
 DB_CORRECTIONS_SHEET = get_secret("DB_CORRECTIONS_SHEET", "corrections")
+
 
 HUBS = [
     ("Poznań", 52.4056786, 16.9312766, 1),
@@ -101,14 +112,13 @@ COLUMN_MAP = {
     "destination": "Dokąd",
     "stops": "Przystanki",
     "typ_transportu": "Typ transportu",
-    #"direction": "Kierunek",
     "dlugosc_trasy_km": "Długość trasy (km)",
     "dest_score": "Ocena kierunku",
     "hub_name": "Najbliższy hub",
     "base_price": "Cena bazowa",
     "surcharge": "Dopłaty",
     "final_price": "Cena końcowa",
-    "price_km": "cena/km"
+    "price_km": "cena/km",
 }
 
 QUICK_LOADS = [
@@ -116,17 +126,17 @@ QUICK_LOADS = [
     "Czarnków, 64-700",
     "Gromadka, 59-706",
 ]
-OTHER_LABEL = "Inny adres…"
+
 
 # ---------------------------
-# Helpers: haversine + hub score + kierunek
+# Helpers: loads + geo
 # ---------------------------
-
 def search_loads(searchterm: str):
     term = (searchterm or "").strip().lower()
     if not term:
         return QUICK_LOADS
     return [x for x in QUICK_LOADS if term in x.lower()]
+
 
 def haversine_km(lat1, lon1, lat2, lon2) -> float:
     R = 6371.0
@@ -136,6 +146,7 @@ def haversine_km(lat1, lon1, lat2, lon2) -> float:
     a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlmb / 2) ** 2
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c
+
 
 def nearest_hub_and_score(dest_lat: float, dest_lon: float) -> tuple[str, float, float]:
     if not HUBS:
@@ -147,38 +158,44 @@ def nearest_hub_and_score(dest_lat: float, dest_lon: float) -> tuple[str, float,
             best = (name, d, score)
     return best[0], float(best[1]), float(best[2])
 
+
 def bearing_deg(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     phi1 = math.radians(lat1)
     phi2 = math.radians(lat2)
     dlambda = math.radians(lon2 - lon1)
-
     y = math.sin(dlambda) * math.cos(phi2)
     x = math.cos(phi1) * math.sin(phi2) - math.sin(phi1) * math.cos(phi2) * math.cos(dlambda)
     brng = math.degrees(math.atan2(y, x))
     return (brng + 360.0) % 360.0
 
+
 def bearing_to_compass_16(brng: float) -> str:
-    dirs = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"]
+    dirs = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
     idx = int((brng + 11.25) // 22.5) % 16
     return dirs[idx]
+
 
 def round_up_to_10(x: float) -> float:
     return math.ceil(x / 10) * 10
 
+
 def norm_city(s: str) -> str:
     return s.strip().lower()
 
+
 # ---------------------------
-# Helpers: Google API
+# Google API
 # ---------------------------
 class GoogleAPIError(RuntimeError):
     pass
+
 
 def _assert_key():
     if not API_KEY:
         raise GoogleAPIError("Brak GOOGLE_MAPS_API_KEY. Dodaj do .env / secrets.")
 
-@st.cache_data(ttl=24*3600)
+
+@st.cache_data(ttl=24 * 3600)
 def geocode(place: str) -> tuple[float, float, str]:
     _assert_key()
     g_url = "https://maps.googleapis.com/maps/api/geocode/json"
@@ -194,17 +211,11 @@ def geocode(place: str) -> tuple[float, float, str]:
     return float(loc["lat"]), float(loc["lng"]), res.get("formatted_address", place)
 
 
-@st.cache_data(ttl=6*3600)
+@st.cache_data(ttl=6 * 3600)
 def route_km(origin: str, destination: str, mode: str, waypoints: tuple[str, ...]) -> float:
     _assert_key()
     g_url = "https://maps.googleapis.com/maps/api/directions/json"
-    params = {
-        "origin": origin,
-        "destination": destination,
-        "mode": mode,
-        "units": "metric",
-        "key": API_KEY,
-    }
+    params = {"origin": origin, "destination": destination, "mode": mode, "units": "metric", "key": API_KEY}
     if waypoints:
         params["waypoints"] = "|".join(waypoints)
 
@@ -222,14 +233,16 @@ def route_km(origin: str, destination: str, mode: str, waypoints: tuple[str, ...
     meters = sum(leg["distance"]["value"] for leg in legs)
     return float(meters) / 1000.0
 
-# zapis do google sheets
+
+# ---------------------------
+# Apps Script DB
+# ---------------------------
 def db_append_row(sheet: str, row: list):
     """Zapis jednego wiersza do Google Sheets przez Apps Script."""
     if not APPS_SCRIPT_URL:
         return
 
     payload = {"row": row}
-
     r = requests.post(
         APPS_SCRIPT_URL,
         params={"sheet": sheet, "token": APPS_SCRIPT_TOKEN},
@@ -241,11 +254,15 @@ def db_append_row(sheet: str, row: list):
     if data.get("status") != "ok":
         raise RuntimeError(f"Apps Script DB error: {data}")
 
+
 @st.cache_data(ttl=60)
-def db_read_df(sheet: str, limit: int = 300) -> pd.DataFrame:
-    """Odczyt danych z Sheets przez Apps Script (ostatnie N wierszy)."""
+def db_read_df(sheet: str, limit: int = 300) -> tuple[pd.DataFrame, str | None]:
+    """
+    Odczyt danych z Sheets przez Apps Script.
+    ✅ bez UI w środku cache (zwracamy err zamiast st.write).
+    """
     if not APPS_SCRIPT_URL:
-        return pd.DataFrame()
+        return pd.DataFrame(), None
 
     r = requests.get(
         APPS_SCRIPT_URL,
@@ -253,26 +270,23 @@ def db_read_df(sheet: str, limit: int = 300) -> pd.DataFrame:
         timeout=15,
     )
     r.raise_for_status()
-    #data = r.json()
-    #if data.get("status") != "ok":
-        #return pd.DataFrame()
+
     data = r.json()
     if data.get("status") != "ok":
-        st.write("Apps Script error payload:", data)
-        return pd.DataFrame()
+        return pd.DataFrame(), f"Apps Script error payload: {data}"
 
     header = data.get("header", [])
     rows = data.get("rows", [])
     if not header or not rows:
-        return pd.DataFrame()
+        return pd.DataFrame(), None
 
     df = pd.DataFrame(rows, columns=header)
 
-    # 👇 NOWE: mapowanie nazw z ludzkich → techniczne
-    REVERSE_COLUMN_MAP = {v: k for k, v in COLUMN_MAP.items()}
-    df = df.rename(columns=REVERSE_COLUMN_MAP)
+    # mapowanie nazw z ludzkich → techniczne (bo w Sheets możesz mieć "ładne" nagłówki)
+    reverse_column_map = {v: k for k, v in COLUMN_MAP.items()}
+    df = df.rename(columns=reverse_column_map)
 
-    return df
+    return df, None
 
 
 # ---------------------------
@@ -282,91 +296,96 @@ def db_read_df(sheet: str, limit: int = 300) -> pd.DataFrame:
 def load_model():
     return joblib.load(MODEL_PATH)
 
+
 model = load_model()
 
+
 # ---------------------------
-# UI: trasa dynamiczna (punkty) + dodawanie/usuwanie
+# Session state
 # ---------------------------
 if "addresses" not in st.session_state:
-    st.session_state.addresses = ["", ""]
+    st.session_state.addresses = ["", ""]  # start + koniec
 
-if "origin_mode" not in st.session_state:
-    st.session_state.origin_mode = "pick"  # "pick" albo "manual"
+if "selected_opts" not in st.session_state:
+    st.session_state.selected_opts = []
 
-st.subheader("Trasa")
-
-# ➕ poza formą
-if st.button("➕ Dodaj punkt"):
-    st.session_state.addresses.append("")
-    st.rerun()
-
-with st.form("main"):
-    for i, addr in enumerate(st.session_state.addresses):
-        cols = st.columns([6, 1])
-
-        label = (
-            "Punkt startowy" if i == 0
-            else ("Punkt końcowy"
-                  if i == len(st.session_state.addresses) - 1
-                  else f"Stop {i}")
-        )
-
-        placeholder = (
-            "Załadunek" if i == 0
-            else ("Rozładunek"
-                  if i == len(st.session_state.addresses) - 1
-                  else "Przystanek pośredni")
-        )
-
-        with cols[0]:
-            if i == 0:
-                picked = st_searchbox(
-                    search_loads,
-                    key="origin_searchbox",
-                    label=label,
-                    placeholder="Załadunek",
-                    clear_on_submit=False,
-                    )
-                    # zapisujemy cokolwiek user wpisał / wybrał
-                st.session_state.addresses[0] = picked or ""
-            
-            else:
-                st.session_state.addresses[i] = st.text_input(
-                    label,
-                    value=addr,
-                    placeholder=placeholder,
-                    key=f"address_{i}",
-                )
-            
-
-        # ❌ usuń punkt (nie usuwamy origin)
-        if i > 0:
-            with cols[1]:
-                if st.form_submit_button("❌", key=f"remove_{i}"):
-                    st.session_state.addresses.pop(i)
-                    st.rerun()
-
-    transport_ui = st.selectbox(
-        "Typ transportu",
-        list(TRANSPORT_UI_TO_MODEL.keys()),
-        index=0
-    )
-
-    with st.expander("Zaawansowane (opcjonalne)"):
-        st.markdown("**Opcje + (każda +100 zł):**")
-        selected_opts = []
-        for label, key in OPTIONS_PLUS:
-            if st.checkbox(label, value=False, key=f"opt_{key}"):
-                selected_opts.append(key)
-
-    submitted = st.form_submit_button("Policz")
+if "transport_ui" not in st.session_state:
+    st.session_state.transport_ui = "Naczepa"
 
 
 # ---------------------------
-# Wynik i moduły pod spodem
+# UI: Trasa (bez st.form, żeby uniknąć submit-button min)
+# ---------------------------
+st.subheader("Trasa")
+
+top = st.columns([1, 1, 6])
+with top[0]:
+    if st.button("➕ Dodaj punkt"):
+        st.session_state.addresses.append("")
+        st.rerun()
+
+with top[1]:
+    if st.button("🧹 Wyczyść"):
+        st.session_state.addresses = ["", ""]
+        st.session_state.selected_opts = []
+        st.session_state.transport_ui = "Naczepa"
+        st.rerun()
+
+# Inputy adresów + przyciski usuń (poza formą, normalne buttony)
+for i, addr in enumerate(st.session_state.addresses):
+    cols = st.columns([6, 1])
+
+    label = "Punkt startowy" if i == 0 else ("Punkt końcowy" if i == len(st.session_state.addresses) - 1 else f"Stop {i}")
+    placeholder = "Załadunek" if i == 0 else ("Rozładunek" if i == len(st.session_state.addresses) - 1 else "Przystanek pośredni")
+
+    with cols[0]:
+        if i == 0:
+            picked = st_searchbox(
+                search_loads,
+                key="origin_searchbox",
+                label=label,
+                placeholder="Załadunek",
+                clear_on_submit=False,
+            )
+            # zapisujemy cokolwiek user wpisał / wybrał
+            st.session_state.addresses[0] = picked or ""
+        else:
+            st.session_state.addresses[i] = st.text_input(
+                label,
+                value=addr,
+                placeholder=placeholder,
+                key=f"address_{i}",
+            )
+
+    # usuń punkt (nie usuwamy origin)
+    with cols[1]:
+        if i > 0 and st.button("❌", key=f"remove_{i}"):
+            st.session_state.addresses.pop(i)
+            st.rerun()
+
+st.session_state.transport_ui = st.selectbox(
+    "Typ transportu",
+    list(TRANSPORT_UI_TO_MODEL.keys()),
+    index=list(TRANSPORT_UI_TO_MODEL.keys()).index(st.session_state.transport_ui),
+)
+
+with st.expander("Zaawansowane (opcjonalne)"):
+    st.markdown("**Opcje + (każda +100 zł):**")
+    selected = []
+    for opt_label, opt_key in OPTIONS_PLUS:
+        if st.checkbox(opt_label, value=(opt_key in st.session_state.selected_opts), key=f"opt_{opt_key}"):
+            selected.append(opt_key)
+    st.session_state.selected_opts = selected
+
+submitted = st.button("Policz ✅")
+
+
+# ---------------------------
+# Wynik
 # ---------------------------
 if submitted:
     run_id = dt.datetime.now().strftime("%Y%m%d%H%M%S%f")
+
     with st.spinner("Liczenie trasy i wyceny..."):
         try:
             # adresy
@@ -382,15 +401,14 @@ if submitted:
                     origin = matches[0]
                     st.session_state.addresses[0] = origin
 
-            
             destination = addresses[-1]
             stops = addresses[1:-1]
             stops_count = len(stops)
 
-            options_count = len(selected_opts)
+            options_count = len(st.session_state.selected_opts)
 
             # transport: do modelu (naczepa/solo/bus), do Google zawsze driving
-            model_transport = TRANSPORT_UI_TO_MODEL[transport_ui]
+            model_transport = TRANSPORT_UI_TO_MODEL[st.session_state.transport_ui]
             google_mode = "driving"
 
             km = route_km(origin, destination, google_mode, tuple(stops))
@@ -408,12 +426,16 @@ if submitted:
 
             # feature’y do modelu
             month = dt.datetime.now().month
-            X = pd.DataFrame([{
-                "miesiąc": month,
-                "typ_transportu": model_transport,
-                "długosc_trasy": km,
-                "dest_score": dest_score,
-            }])
+            X = pd.DataFrame(
+                [
+                    {
+                        "miesiąc": month,
+                        "typ_transportu": model_transport,
+                        "długosc_trasy": km,
+                        "dest_score": dest_score,
+                    }
+                ]
+            )
 
             base_price = float(model.predict(X)[0])
 
@@ -429,15 +451,18 @@ if submitted:
 
             c1, c2, c3, c4, c5 = st.columns(5)
             c1.metric("Długość trasy", f"{km:.2f} km")
-            c2.metric("Najbliższy hub", f"{hub_name}")          # kosmetyka: tylko miasto
-            c3.metric("dest_score", f"{int(dest_score)}")       # kosmetyka: int
+            c2.metric("Najbliższy hub", f"{hub_name}")
+            c3.metric("dest_score", f"{int(dest_score)}")
             c4.metric("Kierunek", direction)
             c5.metric("cena/KM", price_km)
 
-
             # ---- Moduł: podobne transporty
             st.subheader("Podobne transporty w przeszłości")
-            hist = db_read_df(DB_HISTORY_SHEET)
+
+            hist, hist_err = db_read_df(DB_HISTORY_SHEET)
+
+            if hist_err:
+                st.warning(hist_err)
 
             if hist.empty:
                 st.info("Brak danych historycznych w Sheets.")
@@ -450,38 +475,32 @@ if submitted:
                 cur_origin = norm_city(origin)
                 cur_destination = norm_city(destination)
 
-                # 1️⃣ NAJPIERW: dokładnie ta sama relacja A → B
-                df = hist[
-                    (hist["origin"] == cur_origin) &
-                    (hist["destination"] == cur_destination)
-                    ]
+                # 1) dokładnie ta sama relacja A → B
+                df = hist[(hist["origin"] == cur_origin) & (hist["destination"] == cur_destination)]
 
                 if "run_id" in df.columns:
                     df = df[df["run_id"] != run_id]
 
-                # 2️⃣ jeśli brak — ten sam destination (różne originy)
+                # 2) jeśli brak — ten sam destination (różne originy)
                 if df.empty:
                     df = hist[hist["destination"] == cur_destination]
 
-                # 3️⃣ jeśli nadal brak — podobny dystans + dest_score
+                # 3) jeśli nadal brak — podobny dystans + dest_score
                 if df.empty:
                     tol_km = 50.0
-                    df = hist[
-                        (hist["dest_score"] == int(dest_score)) &
-                        (hist["dlugosc_trasy_km"].between(km - tol_km, km + tol_km))
+                    if "dlugosc_trasy_km" in hist.columns and "dest_score" in hist.columns:
+                        df = hist[
+                            (hist["dest_score"] == int(dest_score))
+                            & (hist["dlugosc_trasy_km"].between(km - tol_km, km + tol_km))
                         ]
-
-
-                # sortuj: najpierw dokładna relacja, potem dystans
 
                 if "timestamp" in df.columns:
                     df = df.sort_values("timestamp", ascending=False)
 
-                if "final_price" in df.columns and "dlugosc_trasy_km" in df.columns:
-                    df["price_per_km"] = (df["final_price"] / df["dlugosc_trasy_km"]).round(2)
-
+                # kolumny do pokazania (techniczne)
                 show_cols = [
-                    c for c in [
+                    c
+                    for c in [
                         "timestamp",
                         "origin",
                         "destination",
@@ -489,7 +508,7 @@ if submitted:
                         "dlugosc_trasy_km",
                         "dest_score",
                         "final_price",
-                        "price_km"
+                        "price_km",
                     ]
                     if c in df.columns
                 ]
@@ -497,8 +516,8 @@ if submitted:
                 if df.empty:
                     st.info("Nie znaleziono podobnych transportów.")
                 else:
-                    df_ui = df.rename(columns=COLUMN_MAP)
-                    st.dataframe(df_ui[show_cols])
+                    # ✅ najpierw wybór kolumn, potem rename (żeby nie było KeyError)
+                    st.dataframe(df[show_cols].rename(columns=COLUMN_MAP))
 
                     # ---- zapis do history w Sheets (opcjonalne)
                     ts = dt.datetime.now().strftime("%Y-%m-%d")
@@ -510,7 +529,6 @@ if submitted:
                             destination.strip().title(),
                             " | ".join(stops).title(),
                             model_transport,
-                            #direction,
                             km,
                             int(dest_score),
                             hub_name,
@@ -519,7 +537,6 @@ if submitted:
                             final_price,
                             price_km,
                         ]
-
                         db_append_row(DB_HISTORY_SHEET, row)
                         db_read_df.clear()  # odśwież cache
 
@@ -528,10 +545,13 @@ if submitted:
 
             corrected = st.number_input(
                 "Cena poprawiona (zł)",
-                min_value=0.0, step=50.0,
-                value=float(final_price)
+                min_value=0.0,
+                step=50.0,
+                value=float(final_price),
             )
+
             if st.button("Zapisz poprawkę"):
+                ts = dt.datetime.now().strftime("%Y-%m-%d")
                 delta = round(float(corrected) - float(final_price), 2)
                 st.write(f"Delta (poprawiona - wyliczona): **{delta:,.2f} zł**")
 
@@ -539,7 +559,6 @@ if submitted:
                     ts,
                     origin,
                     destination,
-                    #direction,
                     km,
                     int(dest_score),
                     final_price,
@@ -555,7 +574,7 @@ if submitted:
                 st.write("Origin (Google):", o_fmt)
                 st.write("Destination (Google):", d_fmt)
                 st.write("Stopy:", stops)
-                st.write("Opcje +:", selected_opts)
+                st.write("Opcje +:", st.session_state.selected_opts)
                 st.write("Bearing (deg):", brng)
                 st.write("Feature’y do modelu:", X)
 
