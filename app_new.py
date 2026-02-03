@@ -306,7 +306,7 @@ with st.form("main"):
                   else "Przystanek pośredni")
         )
 
-        with cols[0]:
+with cols[0]:
     if i == 0:
         # 1) dropdown z szybkimi adresami + opcja ręczna
         pick = st.selectbox(
