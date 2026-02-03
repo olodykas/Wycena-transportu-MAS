@@ -121,6 +121,13 @@ OTHER_LABEL = "Inny adres…"
 # ---------------------------
 # Helpers: haversine + hub score + kierunek
 # ---------------------------
+
+def search_loads(searchterm: str):
+    term = (searchterm or "").strip().lower()
+    if not term:
+        return QUICK_LOADS
+    return [x for x in QUICK_LOADS if term in x.lower()]
+
 def haversine_km(lat1, lon1, lat2, lon2) -> float:
     R = 6371.0
     p1, p2 = math.radians(lat1), math.radians(lat2)
@@ -311,25 +318,26 @@ with st.form("main"):
                   else "Przystanek pośredni")
         )
 
-        with cols[0]:
-            if i == 0:
-                picked_list = st_tags(
-                    label=label,                    # "Punkt startowy (origin)"
-                    text="Załadunek",               # placeholder-ish
-                    value=[st.session_state.addresses[0]] if st.session_state.addresses[0] else [],
-                    suggestions=QUICK_LOADS,        # Twoje 3 adresy
-                    maxtags=1,                      # tylko jeden załadunek
-                    key="origin_tags",
-                )
-                st.session_state.addresses[0] = picked_list[0] if picked_list else ""
-            else:
-                st.session_state.addresses[i] = st.text_input(
-                    label,
-                    value=addr,
-                    placeholder=placeholder,
-                    key=f"address_{i}",
-                )
-
+            with cols[0]:
+                if i == 0:
+                    picked = st_searchbox(
+                        search_loads,
+                        key="origin_searchbox",
+                        label=label,
+                        placeholder="Załadunek",
+                        clear_on_submit=False,
+                    )
+                    # zapisujemy cokolwiek user wpisał / wybrał
+                    st.session_state.addresses[0] = picked or ""
+            
+                else:
+                    st.session_state.addresses[i] = st.text_input(
+                        label,
+                        value=addr,
+                        placeholder=placeholder,
+                        key=f"address_{i}",
+                    )
+            
 
         # ❌ usuń punkt (nie usuwamy origin)
         if i > 0:
@@ -367,7 +375,14 @@ if submitted:
                 st.error("Podaj co najmniej punkt startowy i końcowy.")
                 st.stop()
 
-            origin = addresses[0]
+            origin = addresses[0].strip()
+            if origin:
+                matches = search_loads(origin)
+                if matches and origin.lower() not in [m.lower() for m in matches]:
+                    origin = matches[0]
+                    st.session_state.addresses[0] = origin
+
+            
             destination = addresses[-1]
             stops = addresses[1:-1]
             stops_count = len(stops)
@@ -377,12 +392,6 @@ if submitted:
             # transport: do modelu (naczepa/solo/bus), do Google zawsze driving
             model_transport = TRANSPORT_UI_TO_MODEL[transport_ui]
             google_mode = "driving"
-
-            # trasa km
-            origin = st.session_state.addresses[0].strip()
-            if not origin:
-                st.error("Uzupełnij pole Załadunek.")
-                st.stop()
 
             km = route_km(origin, destination, google_mode, tuple(stops))
 
