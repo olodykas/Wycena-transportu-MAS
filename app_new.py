@@ -200,6 +200,11 @@ def round_up_to_10(x: float) -> float:
 def norm_city(s: str) -> str:
     return s.strip().lower()
 
+def norm_place_no_zip(s: str) -> str:
+    s = (s or "").strip().lower()
+    if not s:
+        return ""
+    return s.split(",", 1)[0].strip()
 
 # ---------------------------
 # Google API
@@ -436,7 +441,7 @@ submitted = st.button("Policz ✅")
 # Wynik
 # ---------------------------
 if submitted:
-    run_id = dt.datetime.now().strftime("%Y%m%d%H%M%S%f")
+    run_id = dt.datetime.now().strftime("%Y%m%d%")
 
     with st.spinner("Liczenie trasy i wyceny..."):
         try:
@@ -522,10 +527,10 @@ if submitted:
                 # normalizacja kolumn tekstowych
                 for col in ["origin", "destination"]:
                     if col in hist.columns:
-                        hist[col] = hist[col].astype(str).str.strip().str.lower()
-
-                cur_origin = norm_city(origin)
-                cur_destination = norm_city(destination)
+                        hist[col] = hist[col].astype(str).apply(norm_place_no_zip)
+                
+                cur_origin = norm_place_no_zip(origin)
+                cur_destination = norm_place_no_zip(destination)
 
                 # 1) dokładnie ta sama relacja A → B
                 df = hist[(hist["origin"] == cur_origin) & (hist["destination"] == cur_destination)]
